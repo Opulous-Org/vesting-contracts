@@ -1,0 +1,222 @@
+#pragma version 5
+// Opulous - Vesting
+
+// check_available_amount
+//  - args:
+//  -- 0: start_timestamp
+//  -- 1: end_timestamp
+//  -- 2: total amount
+//  - assets:
+//  -- 0: asset id
+//  - accounts:
+//  -- 0: sender (default)
+//  -- 1: asset holder account
+
+
+// scratch space
+//  0 - start_timestamp
+//  1 - end_timestamp
+//  2 - total amount
+//  3 - amount to be withdrawn
+//  4 - assets holder account
+//  5 - asset id
+
+// Check if application is being created
+txn ApplicationID
+int 0
+==
+bnz creation
+
+txn OnCompletion
+int NoOp
+==
+bnz check_available_amount
+
+// Fail if we get here
+// CloseOut, UpdateApplication, DeleteApplication
+err
+
+creation:
+
+  b success
+
+check_available_amount:
+  // app call should be the first txn (initial balances)
+  txn GroupIndex
+  int 0
+  ==
+  assert
+
+  callsub init_check_available_amount
+
+  // app call (check_available_amount) + asset transfer
+  global GroupSize
+  int 2
+  ==
+  bnz check_withdraw
+
+  //  app call (check_available_amount) + asset transfer + pay (defund)
+  global GroupSize
+  int 3
+  ==
+  bnz check_withdraw_and_defund
+
+  err
+
+check_withdraw:
+  callsub get_current_timestamp
+  callsub get_end_timestamp
+  <
+  assert
+
+  callsub get_amount
+  int 0
+  >
+  assert
+
+  callsub get_amount
+  callsub get_available_amount
+  <=
+  assert
+
+  callsub get_amount
+  callsub get_current_balance
+  <
+  assert
+
+  b success
+
+check_withdraw_and_defund:
+  callsub get_current_timestamp
+  callsub get_end_timestamp
+  >=
+  assert
+
+  b success
+
+init_check_available_amount:
+  // start_timestamp
+  txna ApplicationArgs 0
+  btoi
+  store 0
+  // end_timestamp
+  txna ApplicationArgs 1
+  btoi
+  store 1
+  // total amount
+  txna ApplicationArgs 2
+  btoi
+  store 2
+  // amount to be withdrawn
+  gtxn 1 AssetAmount
+  store 3
+  // assets holder account
+  txna Accounts 1
+  store 4
+  // asset id
+  txna Assets 0
+  store 5
+
+  retsub
+
+get_start_timestamp:
+  load 0
+
+  retsub
+
+get_end_timestamp:
+  load 1
+
+  retsub
+
+get_total_amount:
+  load 2
+
+  retsub
+
+get_amount:
+  load 3
+
+  retsub
+
+get_assets_holder_account:
+  load 4
+
+  retsub
+
+get_asset_id:
+  load 5
+
+  retsub
+
+get_current_balance:
+  callsub get_assets_holder_account
+  callsub get_asset_id
+  asset_holding_get AssetBalance
+  assert
+
+  retsub
+
+get_current_timestamp:
+  global LatestTimestamp
+
+  retsub
+
+get_available_amount:
+
+  callsub get_current_timestamp
+  callsub get_start_timestamp
+  <
+  bnz return_available_amount_as_0
+
+  callsub get_total_amount
+  callsub get_end_timestamp
+  callsub get_start_timestamp
+  - // (end_timestamp - start_timestamp) -> A
+  / // total_amount / A -> B
+
+  // B can be 0 by truncation (A > total_amount) 
+  // return 0 if B = 0
+  dup
+  bz skip_get_available_amount
+    
+  callsub get_current_timestamp
+  callsub get_start_timestamp
+  - // (current_timestamp - start_timestamp) -> C
+  * // B * C -> D
+  // if total_amount_to_issue < current_contract_balance return 0
+  // else return total_amount_to_issue - current_contract_balance -> E
+  callsub get_amount_withdrawn
+  - // D - E
+
+  retsub
+
+  skip_get_available_amount:
+    retsub
+
+  return_available_amount_as_0:
+    int 0
+
+    retsub
+
+get_amount_withdrawn:
+  callsub get_total_amount
+  callsub get_current_balance
+  <
+  bnz return_amount_withdrawn_as_0
+
+  callsub get_total_amount
+  callsub get_current_balance
+  - 
+
+  retsub
+
+  return_amount_withdrawn_as_0:
+    int 0
+
+    retsub
+
+success:
+  int 1
+
+  return

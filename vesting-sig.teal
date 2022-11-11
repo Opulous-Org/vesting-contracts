@@ -1,0 +1,310 @@
+#pragma version 5
+// opt-in
+// - txn 0 - asset transfer (lsig -> lsig)
+// -- sender: lsig
+// - txn 1 - payment (pay the fees)
+// -- sender: funder (or another)
+
+// withdraw:
+// - txn 0 - app call (check asset amount x asset available)
+// -- (app call pays all the fees)
+// -- sender: asset receiver
+// -- args:
+// --- 0: start_timestamp
+// --- 1: end_timestamp
+// --- 2: total amount
+// -- assets:
+// --- 0: asset id
+// -- accounts
+// --- 0: Receiver (Sender is default)
+// --- 1: lsig
+// - txn 1 - asset transfer (close out when defunding)
+// -- sender: lsig
+// when withdraw and defund (last withdraw)
+// - txn 2 - payment (closeRemainderTo funder)
+// -- sender: lsig
+
+// lsig never pays the fees
+txn Fee
+int 0
+==
+assert
+
+// check that this tx is not an attempt to rekey
+txn RekeyTo
+global ZeroAddress
+==
+assert
+
+// check that the asset sender is not set (we use the Sender field, AssetSender only to be used in
+// clawback txs)
+txn AssetSender
+global ZeroAddress
+==
+assert
+
+// opt-in: asset transfer [0] + fees payment [1]
+global GroupSize
+int 2
+==
+gtxn 0 TypeEnum
+int axfer
+==
+&&
+gtxn 0 AssetAmount
+int 0
+==
+&&
+gtxn 1 TypeEnum
+int pay
+==
+&&
+bnz opt_in
+
+// withdraw: app call [0] + asset transfer [1]
+global GroupSize
+int 2
+==
+gtxn 0 TypeEnum
+int appl
+==
+&&
+gtxn 1 TypeEnum
+int axfer
+==
+&&
+bnz withdraw
+
+// last withdraw: app call [0] + asset transfer [1] + pay (defund) [2]
+global GroupSize
+int 3
+==
+gtxn 0 TypeEnum
+int appl
+==
+&&
+gtxn 1 TypeEnum
+int axfer
+==
+&&
+gtxn 2 TypeEnum
+int pay
+==
+&&
+bnz withdraw_and_defund
+
+err
+
+opt_in:
+  // only signs asset transfer [0]
+  txn GroupIndex
+  int 0
+  ==
+  assert
+
+  // check that this tx is not an attempt to opt out of the asset (and send the remaining balance
+  // somewhere)
+  gtxn 0 AssetCloseTo
+  global ZeroAddress
+  ==
+  assert
+
+  // asset type should be expected
+  gtxn 0 XferAsset
+  callsub get_asset_id
+  ==
+  assert
+
+  // opt in so this contract should be the receiver
+  gtxn 0 AssetReceiver
+  gtxn 0 Sender
+  ==
+  assert
+
+  // fees payment (pooled transaction fees)
+  gtxn 1 Fee
+  int 0
+  >
+  assert
+
+  gtxn 1 Sender
+  gtxn 1 Receiver
+  ==
+  assert
+
+  gtxn 1 Amount
+  int 0
+  ==
+  assert
+
+  gtxn 1 CloseRemainderTo
+  global ZeroAddress
+  ==
+  assert
+
+  b success
+
+withdraw:
+  callsub check_withdraw
+
+  // only signs asset transfer [1]
+  txn GroupIndex
+  int 1
+  ==
+  assert
+
+  gtxn 1 AssetCloseTo
+  global ZeroAddress
+  ==
+  assert
+
+  b success
+
+withdraw_and_defund:
+  callsub check_withdraw
+
+  // signs asset transfer [1] or payment (defund) [2]
+  txn GroupIndex
+  int 1
+  ==
+  txn GroupIndex
+  int 2
+  ==
+  ||
+  assert
+
+  // check txns are from this contract
+  gtxn 1 Sender
+  gtxn 2 Sender
+  ==
+  assert
+
+  gtxn 1 AssetCloseTo
+  callsub get_receiver_address
+  ==
+  assert
+
+  // validate closeRemainderTo is set to funding address so there is no remainder
+  gtxn 2 CloseRemainderTo
+  callsub get_funding_address
+  ==
+  assert
+
+  // check payment is to funding address
+  gtxn 2 Receiver
+  callsub get_funding_address
+  ==
+  assert
+
+  b success
+
+check_withdraw:
+  // app call sender is the asset receiver
+  gtxn 0 Sender
+  callsub get_receiver_address
+  ==
+  assert
+
+  // application on txn 0 call is known
+  gtxn 0 ApplicationID
+  callsub get_app_id
+  ==
+  assert
+
+  // txn 0 arg 1 is start_timestamp
+  gtxna 0 ApplicationArgs 0
+  btoi
+  callsub get_start_timestamp
+  ==
+  assert
+
+  // txn 0 arg 2 is end_timestamp
+  gtxna 0 ApplicationArgs 1
+  btoi
+  callsub get_end_timestamp
+  ==
+  assert
+
+  // txn 0 arg 3 is total amount
+  gtxna 0 ApplicationArgs 2
+  btoi
+  callsub get_total_amount
+  ==
+  assert
+
+  // assets array length is 1 [expected asset id]
+  gtxn 0 NumAssets
+  int 1
+  ==
+  assert
+
+  // assets[0] is the asset
+  gtxna 0 Assets 0
+  callsub get_asset_id
+  == 
+  assert
+
+  // accounts array length is 1 [lsig address]
+  gtxn 0 NumAccounts
+  int 1
+  ==
+  assert
+
+  // account[1] is the lsig (asset holder)
+  gtxna 0 Accounts 1
+  gtxn 1 Sender
+  == 
+  assert
+
+  gtxn 1 AssetReceiver
+  callsub get_receiver_address
+  ==
+  assert
+
+  // asset id should be the expected
+  gtxn 1 XferAsset
+  callsub get_asset_id
+  ==
+  assert
+
+  retsub
+
+get_app_id:
+  int <APP_ID>
+
+  retsub
+
+get_asset_id:
+  int <ASSET_ID>
+
+  retsub
+
+get_start_timestamp:
+  int <START_TIMESTAMP>
+
+  retsub
+
+get_end_timestamp:
+  int <END_TIMESTAMP>
+
+  retsub
+
+get_total_amount:
+  int <TOTAL_AMOUNT>
+
+  retsub
+
+get_receiver_address:
+  addr <RECEIVER_ADDRESS>
+
+  retsub
+
+get_funding_address:
+  addr <FUNDING_ADDRESS>
+
+  retsub
+
+success:
+  int 1
+
+  return
