@@ -1,6 +1,18 @@
 # Opulous - Vesting Contracts
 
-Assets slowly released to users over time. Every second new assets can be withdrawn.
+A smart contract and lsig which when combined can allow assets to be released over a period of time.
+
+A project can deposit tokens for a particular user in the lsig provided in this repository and these tokens will be available for a user to withdraw linearly over a specified time period. For more detailed usage information please see below.
+
+
+<br/>
+
+## Audit
+
+The contracts in this repository were audited by Certik on Apr 18th, 2022 https://www.certik.com/projects/opulous#audit (Please refer to the tab Opulous) to see the findings and discussion.
+
+All code is provided without warrenty and to be used at the user's own risk.
+
 
 <br/>
 
