@@ -1,0 +1,26 @@
+{
+  "name": "opulous-vesting-contracts",
+  "version": "1.0.0",
+  "description": "Opulous Vesting Contracts",
+  "scripts": {
+    "test": "jest --i"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Opulous-Org/vesting-contracts.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Opulous-Org/vesting-contracts/issues"
+  },
+  "homepage": "https://github.com/Opulous-Org/vesting-contracts#readme",
+  "dependencies": {
+    "algosdk": "^1.23.2",
+    "date-fns": "^2.29.3",
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "jest": "^29.3.1"
+  }
+}
