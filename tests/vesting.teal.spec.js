@@ -12,6 +12,7 @@ const {
 
 const { compile } = require('./utils/compile')
 const { getAccountInfo } = require('./utils/get-account-info')
+const { createAccount } = require('./utils/create-account')
 const { fundAccount } = require('./utils/fund-account')
 const { transferAsset } = require('./utils/transfer-asset')
 const { optInToAsset } = require('./utils/opt-in-to-asset')
@@ -41,7 +42,6 @@ const ACCEPT_ANYTHING_TEAL_PATH = path.join(
 )
 
 describe('vesting-contracts', () => {
-  const INITIAL_FUNDS = 10_000_000
   const ASSET_DECIMALS = 10
   const ASSET_TOTAL_RESERVE = convertToAssetUnits(500_000_000, ASSET_DECIMALS)
   const MINIMUN_FUND = 200_000 // 1 asset
@@ -59,14 +59,6 @@ describe('vesting-contracts', () => {
     acceptAnythingSmartSignatureCompiled,
     vestingSmartSignature,
     acceptAnythingSmartSignature
-
-  const createAccount = async (fund = true) => {
-    const account = algosdk.generateAccount()
-    if (fund) {
-      await fundAccount(account.addr, INITIAL_FUNDS)
-    }
-    return account
-  }
 
   const getAmountWithoutRewards = (account) => account.amount - account.rewards
 
@@ -88,7 +80,7 @@ describe('vesting-contracts', () => {
 
   const setup = async ({ startDate, endDate, totalAmount }) => {
     funderAccount = await createAccount()
-    fundsReceiverAccount = await createAccount(false)
+    fundsReceiverAccount = await createAccount(0)
     assetReceiverAccount = await createAccount()
 
     const total =
